@@ -1,9 +1,10 @@
 /*
- * GNOME Shell Extension: PiP on top
- * Developer: Rafostar
+ * GNOME Shell Extension: PiP Wayland Fix
+ * Based on PiP on top by Rafostar
  */
 
 import Meta from 'gi://Meta';
+import GLib from 'gi://GLib';
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 export default class PipOnTop extends Extension
@@ -13,10 +14,14 @@ export default class PipOnTop extends Extension
     this._lastWorkspace = null;
     this._windowAddedId = 0;
     this._windowRemovedId = 0;
+    this._windowCreatedId = 0;
 
     this.settings = this.getSettings();
     this._settingsChangedId = this.settings.connect(
       'changed', this._onSettingsChanged.bind(this));
+
+    this._windowCreatedId = global.display.connect(
+      'window-created', this._onWindowCreated.bind(this));
 
     this._switchWorkspaceId = global.window_manager.connect_after(
       'switch-workspace', this._onSwitchWorkspace.bind(this));
@@ -28,6 +33,7 @@ export default class PipOnTop extends Extension
     this.settings.disconnect(this._settingsChangedId);
     this.settings = null;
 
+    global.display.disconnect(this._windowCreatedId);
     global.window_manager.disconnect(this._switchWorkspaceId);
 
     if (this._lastWorkspace) {
@@ -40,6 +46,7 @@ export default class PipOnTop extends Extension
     this._switchWorkspaceId = 0;
     this._windowAddedId = 0;
     this._windowRemovedId = 0;
+    this._windowCreatedId = 0;
 
     let actors = global.get_window_actors();
     if (actors) {
@@ -94,13 +101,28 @@ export default class PipOnTop extends Extension
     }
   }
 
-  _onWindowAdded(workspace, window)
+  _onWindowCreated(display, window)
   {
     if (!window._notifyPipTitleId) {
       window._notifyPipTitleId = window.connect_after(
         'notify::title', this._checkTitle.bind(this));
     }
+
+    let actor = window.get_compositor_private();
+    if (actor && !window._notifyPipFirstFrameId) {
+      window._notifyPipFirstFrameId = actor.connect(
+        'first-frame', () => {
+          if (window._isPipAble)
+            this._moveToBottomRight(window);
+        });
+    }
+
     this._checkTitle(window);
+  }
+
+  _onWindowAdded(workspace, window)
+  {
+    this._onWindowCreated(global.display, window);
   }
 
   _onWindowRemoved(workspace, window)
@@ -109,8 +131,40 @@ export default class PipOnTop extends Extension
       window.disconnect(window._notifyPipTitleId);
       window._notifyPipTitleId = null;
     }
+    if (window._notifyPipFirstFrameId) {
+      let actor = window.get_compositor_private();
+      if (actor)
+        actor.disconnect(window._notifyPipFirstFrameId);
+      window._notifyPipFirstFrameId = null;
+    }
     if (window._isPipAble)
       window._isPipAble = null;
+  }
+
+  _moveToBottomRight(window)
+  {
+    let monitorIndex = window.get_monitor();
+    if (monitorIndex < 0)
+      monitorIndex = global.display.get_primary_monitor();
+
+    let monitor = global.display.get_monitor_geometry(monitorIndex);
+    if (!monitor)
+      return;
+
+    let rect = window.get_frame_rect();
+    if (!rect || rect.width === 0 || rect.height === 0) {
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        this._moveToBottomRight(window);
+        return GLib.SOURCE_REMOVE;
+      });
+      return;
+    }
+
+    let padding = 20;
+    let x = monitor.x + monitor.width - rect.width - padding;
+    let y = monitor.y + monitor.height - rect.height - padding;
+
+    window.move_resize_frame(true, x, y, rect.width, rect.height);
   }
 
   _checkTitle(window)
@@ -132,6 +186,9 @@ export default class PipOnTop extends Extension
 
     if (isPipWin || window._isPipAble) {
       let un = (isPipWin) ? '' : 'un';
+
+      if (isPipWin && !window._isPipAble)
+        this._moveToBottomRight(window);
 
       window._isPipAble = true;
       window[`${un}make_above`]();

@@ -1,9 +1,9 @@
 {
-  "description": "Makes \"Picture-in-Picture\" windows stay on top (even on Wayland session). Compatible with Firefox, but may work with few other browsers too.",
-  "extension-id": "pip-on-top",
-  "gettext-domain": "pip-on-top",
-  "name": "PiP on top",
-  "settings-schema": "org.gnome.shell.extensions.pip-on-top",
+  "description": "Fixes Firefox Picture-in-Picture on Wayland: keeps PiP window always on top and positions it in bottom-right corner.",
+  "extension-id": "pip-wayland-fix",
+  "gettext-domain": "pip-wayland-fix",
+  "name": "PiP Wayland Fix",
+  "settings-schema": "org.gnome.shell.extensions.pip-wayland-fix",
   "shell-version": [
     "45",
     "46",
@@ -11,7 +11,8 @@
     "48",
     "49"
   ],
-  "url": "https://github.com/Rafostar/gnome-shell-extension-pip-on-top",
-  "uuid": "pip-on-top@rafostar.github.com",
-  "version": 999
+  "url": "https://github.com/romaniyazov/pip-wayland-fix",
+  "uuid": "pip-wayland-fix@romaniyazov.github.com",
+  "version": 1,
+  "original-author": "Rafostar"
 }
